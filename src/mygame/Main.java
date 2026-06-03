@@ -45,7 +45,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     private BitmapText textoLlaves = null;
     private BitmapText textoPromptLlave = null;
 
-    // ── Caja Fuerte y Victoria (¡NUEVO!) ───────────────────────────────────────
+    // ── Caja Fuerte y Victoria ─────────────────────────────────────────────────
     private Spatial nodoCajaFuerte = null;
     private boolean juegoGanado = false;
     private Geometry overlayVerde = null;
@@ -65,9 +65,14 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     private static final float MOUSE_SPEED = 2.5f;
     private static final float PITCH_MAX   = FastMath.HALF_PI * 0.90f;
 
-    // ── Movimiento del jugador ────────────────────────────────────────────────
-    private static final float WALK_SPEED   = 5f;
-    private static final float RUN_SPEED    = 9f;
+    // ── CONFIGURACIÓN DE DIFICULTAD (¡NUEVO!) ──────────────────────────────────
+    private boolean enMenuDificultad = true;
+    private Geometry overlayMenu = null;
+    private BitmapText textoMenu = null;
+
+    // Variables dinámicas de velocidad en lugar de constantes finales
+    private float walkSpeed   = 5f;  // Por defecto Medio (5)
+    private float runSpeed    = 9f;  // Por defecto Medio (9)
     private static final float STRAFE_SPEED = 3f;
     private static final float CAM_Y_OFFSET = 0.5f;
 
@@ -121,7 +126,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     private static final Vector3f POS_EXPANDED_A_GRANDE   = new Vector3f(-11.060001f,   0.9f, -16.614017f);
 
     // ── Posiciones portales Grande ────────────────────────────────────────────
-    private static final Vector3f POS_GRANDE_A_EXPANDED   = new Vector3f(0.023550153f,  0.9f,  29.53489f);
+    private static final Vector3f POS_GRANDE_A_EXPANDED   = new Vector3f(0.0f,  0.9f,  0.0f);
 
     // ── Niña ──────────────────────────────────────────────────────────────────
     private Nina nina;
@@ -159,7 +164,6 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
         if (nodoLlave1 != null) { rootNode.detachChild(nodoLlave1); nodoLlave1 = null; }
         if (nodoLlave2 != null) { rootNode.detachChild(nodoLlave2); nodoLlave2 = null; }
-        // Desacoplar la caja fuerte al cambiar de mapa de forma limpia
         if (nodoCajaFuerte != null) { rootNode.detachChild(nodoCajaFuerte); nodoCajaFuerte = null; }
 
         if (nodoMapaActual != null) {
@@ -255,14 +259,11 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
             rootNode.attachChild(nodoLlave2);
         }
 
-        // ── Carga de la Caja Fuerte (Solo en mapa grande) ─────────────────────
+        // ── Carga de la Caja Fuerte ───────────────────────────────────────────
         if (nombreMapa.equals("grande")) {
             nodoCajaFuerte = assetManager.loadModel("Models/caja_fuerte.obj");
-
-            // Asignar Posición proporcionada
             nodoCajaFuerte.setLocalTranslation(0.1267921f, 1.0268862f, 18.163763f);
 
-            // Asignar Rotación proporcionada (Convertida de Grados a Radianes)
             float yawRad   = 265.21677f * FastMath.DEG_TO_RAD;
             float pitchRad = 15.247167f * FastMath.DEG_TO_RAD;
             Quaternion rotCaja = new Quaternion();
@@ -301,11 +302,9 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         }
     }
 
-    // ── Lógica para abrir la caja y ganar el juego (¡NUEVO!) ──────────────────
     private void intentarAbrirCajaFuerte() {
         if (nodoCajaFuerte != null && mapaActual.equals("grande")) {
             Vector3f posJugador = playerControl.getPhysicsLocation();
-            // Comprobar cercanía a la caja fuerte (2.5 metros de rango)
             if (posJugador.distance(nodoCajaFuerte.getWorldTranslation()) <= 2.5f) {
                 if (llavesRecogidas >= 2) {
                     activarVictoria();
@@ -378,6 +377,28 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     private void initHUD() {
         Quad quad = new Quad(settings.getWidth(), settings.getHeight());
+        BitmapFont fuente = assetManager.loadFont("Interface/Fonts/Default.fnt");
+
+        // ── HUD MENU DIFICULTAD (¡NUEVO!) ─────────────────────────────────────
+        overlayMenu = new Geometry("OverlayMenu", quad);
+        Material matMenu = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        matMenu.setColor("Color", new ColorRGBA(0.05f, 0.05f, 0.05f, 0.95f)); // Fondo casi negro
+        overlayMenu.setMaterial(matMenu);
+        overlayMenu.setLocalTranslation(0, 0, 0);
+        guiNode.attachChild(overlayMenu);
+
+        textoMenu = new BitmapText(fuente, false);
+        textoMenu.setSize(fuente.getCharSet().getRenderedSize() * 1.5f);
+        textoMenu.setColor(ColorRGBA.White);
+        textoMenu.setText("SELECCIONA LA DIFICULTAD:\n\n" +
+                "[1] FACIL   -> Caminas mas rapido que la nina.\n" +
+                "[2] MEDIO   -> Velocidad estandar equilibrada.\n" +
+                "[3] DIFICIL -> La nina es mas rapida que tu corriendo.");
+        textoMenu.setLocalTranslation(
+                settings.getWidth()  / 2f - 240f,
+                settings.getHeight() / 2f + 80f,
+                1f);
+        guiNode.attachChild(textoMenu);
 
         // HUD Game Over
         overlayRojo = new Geometry("OverlayRojo", quad);
@@ -389,7 +410,6 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         overlayRojo.setCullHint(Spatial.CullHint.Always);
         guiNode.attachChild(overlayRojo);
 
-        BitmapFont fuente = assetManager.loadFont("Interface/Fonts/Default.fnt");
         textoGameOver = new BitmapText(fuente, false);
         textoGameOver.setSize(fuente.getCharSet().getRenderedSize() * 2f);
         textoGameOver.setColor(ColorRGBA.White);
@@ -401,10 +421,10 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         textoGameOver.setCullHint(Spatial.CullHint.Always);
         guiNode.attachChild(textoGameOver);
 
-        // ── HUD Pantalla Victoria (¡NUEVO!) ───────────────────────────────────
+        // HUD Pantalla Victoria
         overlayVerde = new Geometry("OverlayVerde", quad);
         Material matVerde = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        matVerde.setColor("Color", new ColorRGBA(0.0f, 0.35f, 0.15f, 0.7f)); // Tono verde espiritual traslúcido
+        matVerde.setColor("Color", new ColorRGBA(0.0f, 0.35f, 0.15f, 0.7f));
         matVerde.getAdditionalRenderState().setBlendMode(com.jme3.material.RenderState.BlendMode.Alpha);
         overlayVerde.setMaterial(matVerde);
         overlayVerde.setLocalTranslation(0, 0, 0);
@@ -461,14 +481,42 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         inputManager.addMapping("PortalO",        new KeyTrigger(KeyInput.KEY_O));
         inputManager.addMapping("PortalP",        new KeyTrigger(KeyInput.KEY_P));
         inputManager.addMapping("RecogerLlave",   new KeyTrigger(KeyInput.KEY_E));
+
+        // Triggers de Dificultad (¡NUEVO!)
+        inputManager.addMapping("Dificultad1",    new KeyTrigger(KeyInput.KEY_1));
+        inputManager.addMapping("Dificultad2",    new KeyTrigger(KeyInput.KEY_2));
+        inputManager.addMapping("Dificultad3",    new KeyTrigger(KeyInput.KEY_3));
+
         inputManager.addListener(this,
                 "Adelante", "Atras", "Izquierda", "Derecha", "Saltar", "Correr", "Reiniciar",
                 "MirarDerecha", "MirarIzquierda", "MirarArriba", "MirarAbajo",
-                "PortalO", "PortalP", "RecogerLlave");
+                "PortalO", "PortalP", "RecogerLlave", "Dificultad1", "Dificultad2", "Dificultad3");
     }
 
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
+        // Lógica de selección de dificultad al inicio (¡NUEVO!)
+        if (enMenuDificultad) {
+            if (isPressed) {
+                if (name.equals("Dificultad1")) {
+                    walkSpeed = 7.5f; // Más rápido que la niña caminando (asumiendo nina speed ~6.0f)
+                    runSpeed = 11.0f;
+                    finalizarSeleccionDificultad();
+                } else if (name.equals("Dificultad2")) {
+                    walkSpeed = 5.0f; // Velocidad original estándar
+                    runSpeed = 9.0f;
+                    finalizarSeleccionDificultad();
+                } else if (name.equals("Dificultad3")) {
+                    walkSpeed = 2.5f;
+                    runSpeed = 4.5f;  // La niña será notablemente más rápida incluso si corres
+                    // Si tu clase Nina expone un método setVelocidad, también podrías usarlo:
+                    // nina.setVelocidad(12.0f);
+                    finalizarSeleccionDificultad();
+                }
+            }
+            return; // Bloquea cualquier otra acción mientras esté el menú activo
+        }
+
         if (name.equals("Reiniciar") && isPressed) {
             if (gameOver || juegoGanado) reiniciarJuego();
             return;
@@ -503,15 +551,21 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
             case "RecogerLlave":
                 if (isPressed) {
                     intentarRecogerLlave();
-                    intentarAbrirCajaFuerte(); // Evalúa si también está abriendo la caja fuerte
+                    intentarAbrirCajaFuerte();
                 }
                 break;
         }
     }
 
+    private void finalizarSeleccionDificultad() {
+        enMenuDificultad = false;
+        overlayMenu.setCullHint(Spatial.CullHint.Always);
+        textoMenu.setCullHint(Spatial.CullHint.Always);
+    }
+
     @Override
     public void onAnalog(String name, float value, float tpf) {
-        if (gameOver || juegoGanado) return;
+        if (enMenuDificultad || gameOver || juegoGanado) return;
         switch (name) {
             case "MirarDerecha":   yaw   -= value * MOUSE_SPEED; break;
             case "MirarIzquierda": yaw   += value * MOUSE_SPEED; break;
@@ -526,9 +580,9 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     @Override
     public void simpleUpdate(float tpf) {
-        if (gameOver || juegoGanado) return;
+        if (enMenuDificultad || gameOver || juegoGanado) return;
 
-        float velActual = isRunning ? RUN_SPEED : WALK_SPEED;
+        float velActual = isRunning ? runSpeed : walkSpeed;
         camDir.set(cam.getDirection()).multLocal(velActual);
         camLeft.set(cam.getLeft()).multLocal(STRAFE_SPEED);
         camDir.y  = 0;
@@ -612,7 +666,6 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
         nina.actualizar(tpf, playerPos, cam);
 
-        // ── Gestión Dinámica de Prompts en Pantalla (Llaves y Caja Fuerte) ────
         boolean mostrarPrompt = false;
         Vector3f pj = playerControl.getPhysicsLocation();
 
@@ -643,7 +696,6 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         textoGameOver.setCullHint(Spatial.CullHint.Inherit);
     }
 
-    // ── Activar Estado Ganador (¡NUEVO!) ──────────────────────────────────────
     private void activarVictoria() {
         juegoGanado = true;
         nina.ocultar();
@@ -656,14 +708,26 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     private void reiniciarJuego() {
         gameOver = false;
-        juegoGanado = false; // Resetear bandera de victoria
+        juegoGanado = false;
 
         overlayRojo.setCullHint(Spatial.CullHint.Always);
         textoGameOver.setCullHint(Spatial.CullHint.Always);
-        overlayVerde.setCullHint(Spatial.CullHint.Always); // Ocultar overlay verde
-        textoVictoria.setCullHint(Spatial.CullHint.Always); // Ocultar texto victoria
+        overlayVerde.setCullHint(Spatial.CullHint.Always);
+        textoVictoria.setCullHint(Spatial.CullHint.Always);
 
-        cargarMapa("hospital");
+        // ── SOLUCIÓN RESPRAWN DE LLAVES (¡NUEVO!) ────────────────────────────
+        // Se resetean los estados ANTES de cargar el mapa para asegurar que reaparezcan
+        llave1Recogida  = false;
+        llave2Recogida  = false;
+        llavesRecogidas = 0;
+        textoLlaves.setText("Llaves: 0/2");
+
+        if (nodoLlave1 != null) { rootNode.detachChild(nodoLlave1); nodoLlave1 = null; }
+        if (nodoLlave2 != null) { rootNode.detachChild(nodoLlave2); nodoLlave2 = null; }
+        if (nodoCajaFuerte != null) { rootNode.detachChild(nodoCajaFuerte); nodoCajaFuerte = null; }
+
+        cargarMapa("hospital"); // Al ejecutarse, leerá llave1Recogida = false de forma correcta
+
         playerControl.setPhysicsLocation(SPAWN_POS.clone());
         playerControl.setWalkDirection(Vector3f.ZERO);
         yaw   = 0f;
@@ -676,14 +740,6 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         enTeleporte = false;
 
         nina.resetear();
-
-        llave1Recogida  = false;
-        llave2Recogida  = false;
-        llavesRecogidas = 0;
-        textoLlaves.setText("Llaves: 0/2");
-        nodoLlave1 = null;
-        nodoLlave2 = null;
-        nodoCajaFuerte = null;
     }
 
     @Override

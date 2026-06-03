@@ -7,7 +7,7 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
-import com.jme3.scene.shape.Torus;
+import com.jme3.scene.shape.Box; // Cambiado de Torus a Box
 
 public class Portal {
 
@@ -17,7 +17,7 @@ public class Portal {
     private Vector3f  destino;
     private ColorRGBA color;
     private float     tiempo = 0f;
-    private Geometry  aroPulso;
+    private Geometry  centroPulso; // Reemplaza a aroPulso
 
     public Portal(AssetManager assetManager, Node rootNode,
                   Vector3f posicion, Vector3f destino, ColorRGBA color) {
@@ -26,33 +26,36 @@ public class Portal {
         this.color   = color;
         this.nodo    = new Node("Portal");
 
-        // ── Aro exterior ──────────────────────────────────────────────
-        Geometry aroExt = new Geometry("Aro",
-                new Torus(40, 10, 0.07f, 0.75f));
-        Material matExt = new Material(assetManager,
-                "Common/MatDefs/Misc/Unshaded.j3md");
-        matExt.setColor("Color", color);
-        aroExt.setMaterial(matExt);
+        // ── Palo Vertical ─────────────────────────────────────────────────
+        // Extensión: x=0.06 (ancho), y=0.7 (alto total 1.4), z=0.06 (grosor)
+        Geometry paloVert = new Geometry("PaloVertical", new Box(0.06f, 0.7f, 0.06f));
+        Material matVert = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        matVert.setColor("Color", color);
+        paloVert.setMaterial(matVert);
 
-        // ── Aro interior (más brillante) ───────────────────────────────
-        Geometry aroInt = new Geometry("AroInner",
-                new Torus(40, 6, 0.03f, 0.52f));
-        Material matInt = new Material(assetManager,
-                "Common/MatDefs/Misc/Unshaded.j3md");
-        matInt.setColor("Color", color.clone().mult(3f));
-        aroInt.setMaterial(matInt);
+        // ── Palo Horizontal (Posicionado abajo para ser invertida) ────────
+        // Extensión: x=0.45 (ancho total 0.9), y=0.06, z=0.06
+        Geometry paloHoriz = new Geometry("PaloHorizontal", new Box(0.45f, 0.06f, 0.06f));
+        Material matHoriz = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        matHoriz.setColor("Color", color.clone().mult(1.5f)); // Un poco más vivo
+        paloHoriz.setMaterial(matHoriz);
+        
+        // Desplazamos el palo horizontal hacia abajo en el eje Y
+        paloHoriz.setLocalTranslation(0f, -0.3f, 0f);
 
-        // ── Aro de pulso (escala animada) ──────────────────────────────
-        aroPulso = new Geometry("AroPulso",
-                new Torus(30, 5, 0.02f, 0.65f));
-        Material matPulso = new Material(assetManager,
-                "Common/MatDefs/Misc/Unshaded.j3md");
-        matPulso.setColor("Color", color.clone().mult(2f));
-        aroPulso.setMaterial(matPulso);
+        // ── Centro de energía / Pulso (En la intersección) ────────────────
+        centroPulso = new Geometry("CentroPulso", new Box(0.09f, 0.09f, 0.09f));
+        Material matPulso = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        matPulso.setColor("Color", color.clone().mult(3f)); // Brillo intenso
+        centroPulso.setMaterial(matPulso);
+        
+        // Se coloca exactamente en la misma intersección
+        centroPulso.setLocalTranslation(0f, -0.3f, 0f);
 
-        nodo.attachChild(aroExt);
-        nodo.attachChild(aroInt);
-        nodo.attachChild(aroPulso);
+        // Adjuntar todo al nodo principal del portal
+        nodo.attachChild(paloVert);
+        nodo.attachChild(paloHoriz);
+        nodo.attachChild(centroPulso);
         nodo.setLocalTranslation(posicion);
 
         rootNode.attachChild(nodo);
@@ -61,16 +64,15 @@ public class Portal {
     public void actualizar(float tpf) {
         tiempo += tpf;
 
-        // Aro exterior gira en Y
-        nodo.getChild("Aro").rotate(0, tpf * 1.2f, 0);
+        // Rotación de la cruz completa en el eje Y (giro tridimensional)
+        nodo.rotate(0, tpf * 1.5f, 0);
 
-        // Aro interior gira en Z
-        nodo.getChild("AroInner").rotate(0, 0, tpf * 2.0f);
+        // El núcleo central rota en sentido opuesto para dar dinamismo
+        centroPulso.rotate(0, -tpf * 2.5f, 0);
 
-        // Aro de pulso: escala que sube y baja como onda senoidal
-        float pulso = 1f + 0.15f * FastMath.sin(tiempo * 4f);
-        aroPulso.setLocalScale(pulso);
-        aroPulso.rotate(0, -tpf * 0.8f, 0);
+        // Efecto de onda/pulso de tamaño en la intersección
+        float pulso = 1f + 0.25f * FastMath.sin(tiempo * 5f);
+        centroPulso.setLocalScale(pulso);
     }
 
     public boolean jugadorDentro(Vector3f posJugador) {
