@@ -2,6 +2,8 @@ package mygame;
 
 import java.util.ArrayList;
 import com.jme3.app.SimpleApplication;
+import com.jme3.audio.AudioData;
+import com.jme3.audio.AudioNode;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;
@@ -36,6 +38,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     private ArrayList<ControladorLuz> lucesParpadeantes = new ArrayList<>();
 
+    
     // ── Llaves ─────────────────────────────────────────────────────────────────
     private Spatial nodoLlave1 = null;
     private Spatial nodoLlave2 = null;
@@ -65,14 +68,14 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     private static final float MOUSE_SPEED = 2.5f;
     private static final float PITCH_MAX   = FastMath.HALF_PI * 0.90f;
 
-    // ── CONFIGURACIÓN DE DIFICULTAD (¡NUEVO!) ──────────────────────────────────
+    // ── CONFIGURACIÓN DE DIFICULTAD ──────────────────────────────────
     private boolean enMenuDificultad = true;
     private Geometry overlayMenu = null;
     private BitmapText textoMenu = null;
 
-    // Variables dinámicas de velocidad en lugar de constantes finales
-    private float walkSpeed   = 5f;  // Por defecto Medio (5)
-    private float runSpeed    = 9f;  // Por defecto Medio (9)
+    // Variables dinámicas de velocidad
+    private float walkSpeed   = 5f;  
+    private float runSpeed    = 9f;  
     private static final float STRAFE_SPEED = 3f;
     private static final float CAM_Y_OFFSET = 0.5f;
 
@@ -98,9 +101,9 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     // ── Portales fijos ────────────────────────────────────────────────────────
     private Portal portalFijo1 = null;
     private Portal portalFijo2 = null;
-    private static final ColorRGBA COLOR_PAR_2 = new ColorRGBA(1f, 0.3f, 0.1f, 1f);   // naranja
-    private static final ColorRGBA COLOR_PAR_3 = new ColorRGBA(0.2f, 1f, 0.3f, 1f);   // verde
-    private static final ColorRGBA COLOR_PAR_4 = new ColorRGBA(0.7f, 0.2f, 1f, 1f);   // morado
+    private static final ColorRGBA COLOR_PAR_2 = new ColorRGBA(1f, 0.3f, 0.1f, 1f);   
+    private static final ColorRGBA COLOR_PAR_3 = new ColorRGBA(0.2f, 1f, 0.3f, 1f);   
+    private static final ColorRGBA COLOR_PAR_4 = new ColorRGBA(0.7f, 0.2f, 1f, 1f);   
 
     // ── Mapa actual ───────────────────────────────────────────────────────────
     private Node nodoMapaActual = null;
@@ -131,10 +134,20 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     // ── Niña ──────────────────────────────────────────────────────────────────
     private Nina nina;
 
-    // ── Game Over ─────────────────────────────────────────────────────────────
+    // ── Game Over y Nuevo Audio de Muerte ──────────────────────────────────────
     private boolean gameOver = false;
     private Geometry overlayRojo = null;
     private BitmapText textoGameOver = null;
+    private AudioNode audioMuerte; // Varibale para el audio de muerte
+    
+    // Audio ambiente
+    private AudioNode audioSuspenso;
+    private AudioNode audioLatidos;
+    private AudioNode audioRisa;
+
+    // Temporizador para risa aleatoria
+    private float tiempoRisa = 0f;
+    private float siguienteRisa = 15f;
 
     // ── Spawn original ────────────────────────────────────────────────────────
     private static final Vector3f SPAWN_POS = SPAWN_HOSPITAL;
@@ -153,6 +166,50 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         cargarMapa("hospital");
         initHUD();
         registrarInputs();
+
+        // Inicialización del archivo de sonido de muerte (2D para máximo impacto)
+        audioMuerte = new AudioNode(assetManager, "Sounds/muerte.ogg", AudioData.DataType.Buffer);
+        audioMuerte.setLooping(false);
+        audioMuerte.setPositional(false); 
+        audioMuerte.setVolume(1.8f);
+        rootNode.attachChild(audioMuerte);
+        
+        // Música ambiente en loop
+        audioSuspenso = new AudioNode(
+                assetManager,
+                "Sounds/Sonido_background_suspenso_PasilloRojo.ogg",
+                AudioData.DataType.Buffer);
+
+        audioSuspenso.setLooping(true);
+        audioSuspenso.setPositional(false);
+        audioSuspenso.setVolume(0.15f); // bajito
+        rootNode.attachChild(audioSuspenso);
+        audioSuspenso.play();
+
+        // Latidos
+        audioLatidos = new AudioNode(
+                assetManager,
+                "Sounds/Latidos_Corazon.ogg",
+                AudioData.DataType.Buffer);
+
+        audioLatidos.setLooping(true);
+        audioLatidos.setPositional(false);
+        audioLatidos.setVolume(0.8f);
+        rootNode.attachChild(audioLatidos);
+
+        // Risa lejana
+        audioRisa = new AudioNode(
+                assetManager,
+                "Sounds/Risa_Loco_Eco.ogg",
+                AudioData.DataType.Buffer);
+
+        audioRisa.setLooping(false);
+        audioRisa.setPositional(false);
+        audioRisa.setVolume(0.25f); // se escucha lejos
+        rootNode.attachChild(audioRisa);
+
+        // Tiempo inicial aleatorio (mínimo 10 segundos)
+        siguienteRisa = 10f + FastMath.nextRandomFloat() * 15f;
     }
 
     private void initPhysics() {
@@ -378,11 +435,21 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     private void initHUD() {
         Quad quad = new Quad(settings.getWidth(), settings.getHeight());
         BitmapFont fuente = assetManager.loadFont("Interface/Fonts/Default.fnt");
+        
+        BitmapText tituloJuego = new BitmapText(fuente, false);
+        tituloJuego.setSize(fuente.getCharSet().getRenderedSize() * 6f);        tituloJuego.setColor(ColorRGBA.Red);
+        tituloJuego.setText("AND!");
+        tituloJuego.setLocalTranslation(
+                settings.getWidth() / 2f - 90f,
+                settings.getHeight() / 2f + 220f,
+                1f);
 
-        // ── HUD MENU DIFICULTAD (¡NUEVO!) ─────────────────────────────────────
+        guiNode.attachChild(tituloJuego);
+
+        // ── HUD MENU DIFICULTAD ─────────────────────────────────────
         overlayMenu = new Geometry("OverlayMenu", quad);
         Material matMenu = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        matMenu.setColor("Color", new ColorRGBA(0.05f, 0.05f, 0.05f, 0.95f)); // Fondo casi negro
+        matMenu.setColor("Color", new ColorRGBA(0.05f, 0.05f, 0.05f, 0.95f)); 
         overlayMenu.setMaterial(matMenu);
         overlayMenu.setLocalTranslation(0, 0, 0);
         guiNode.attachChild(overlayMenu);
@@ -482,7 +549,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         inputManager.addMapping("PortalP",        new KeyTrigger(KeyInput.KEY_P));
         inputManager.addMapping("RecogerLlave",   new KeyTrigger(KeyInput.KEY_E));
 
-        // Triggers de Dificultad (¡NUEVO!)
+        // Triggers de Dificultad
         inputManager.addMapping("Dificultad1",    new KeyTrigger(KeyInput.KEY_1));
         inputManager.addMapping("Dificultad2",    new KeyTrigger(KeyInput.KEY_2));
         inputManager.addMapping("Dificultad3",    new KeyTrigger(KeyInput.KEY_3));
@@ -495,26 +562,23 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
-        // Lógica de selección de dificultad al inicio (¡NUEVO!)
         if (enMenuDificultad) {
             if (isPressed) {
                 if (name.equals("Dificultad1")) {
-                    walkSpeed = 7.5f; // Más rápido que la niña caminando (asumiendo nina speed ~6.0f)
+                    walkSpeed = 7.5f; 
                     runSpeed = 11.0f;
                     finalizarSeleccionDificultad();
                 } else if (name.equals("Dificultad2")) {
-                    walkSpeed = 5.0f; // Velocidad original estándar
+                    walkSpeed = 5.0f; 
                     runSpeed = 9.0f;
                     finalizarSeleccionDificultad();
                 } else if (name.equals("Dificultad3")) {
                     walkSpeed = 2.5f;
-                    runSpeed = 4.5f;  // La niña será notablemente más rápida incluso si corres
-                    // Si tu clase Nina expone un método setVelocidad, también podrías usarlo:
-                    // nina.setVelocidad(12.0f);
+                    runSpeed = 4.5f;  
                     finalizarSeleccionDificultad();
                 }
             }
-            return; // Bloquea cualquier otra acción mientras esté el menú activo
+            return; 
         }
 
         if (name.equals("Reiniciar") && isPressed) {
@@ -580,6 +644,34 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     @Override
     public void simpleUpdate(float tpf) {
+        
+        if (isRunning &&
+            (moveForward || moveBackward || moveLeft || moveRight)) {
+
+            if (audioLatidos.getStatus() != AudioNode.Status.Playing) {
+                audioLatidos.play();
+            }
+
+        } else {
+
+            if (audioLatidos.getStatus() == AudioNode.Status.Playing) {
+                audioLatidos.stop();
+            }
+
+        }
+        
+        tiempoRisa += tpf;
+
+            if (tiempoRisa >= siguienteRisa) {
+
+                audioRisa.playInstance();
+
+                tiempoRisa = 0f;
+
+                // Entre 10 y 25 segundos
+                siguienteRisa = 10f + FastMath.nextRandomFloat() * 15f;
+            }
+        
         if (enMenuDificultad || gameOver || juegoGanado) return;
 
         float velActual = isRunning ? runSpeed : walkSpeed;
@@ -694,6 +786,11 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         moveForward = moveBackward = moveLeft = moveRight = false;
         overlayRojo.setCullHint(Spatial.CullHint.Inherit);
         textoGameOver.setCullHint(Spatial.CullHint.Inherit);
+
+        // Disparar sonido de muerte / jumpscare
+        if (audioMuerte != null) {
+            audioMuerte.play();
+        }
     }
 
     private void activarVictoria() {
@@ -715,8 +812,11 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         overlayVerde.setCullHint(Spatial.CullHint.Always);
         textoVictoria.setCullHint(Spatial.CullHint.Always);
 
-        // ── SOLUCIÓN RESPRAWN DE LLAVES (¡NUEVO!) ────────────────────────────
-        // Se resetean los estados ANTES de cargar el mapa para asegurar que reaparezcan
+        // Detener sonido de muerte por si acaso se reinicia rápido
+        if (audioMuerte != null) {
+            audioMuerte.stop();
+        }
+
         llave1Recogida  = false;
         llave2Recogida  = false;
         llavesRecogidas = 0;
@@ -726,7 +826,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         if (nodoLlave2 != null) { rootNode.detachChild(nodoLlave2); nodoLlave2 = null; }
         if (nodoCajaFuerte != null) { rootNode.detachChild(nodoCajaFuerte); nodoCajaFuerte = null; }
 
-        cargarMapa("hospital"); // Al ejecutarse, leerá llave1Recogida = false de forma correcta
+        cargarMapa("hospital"); 
 
         playerControl.setPhysicsLocation(SPAWN_POS.clone());
         playerControl.setWalkDirection(Vector3f.ZERO);

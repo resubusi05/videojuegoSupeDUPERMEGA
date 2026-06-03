@@ -1,7 +1,5 @@
 package mygame;
 
-
-
 import com.jme3.asset.AssetManager;
 import com.jme3.audio.AudioData;
 import com.jme3.audio.AudioNode;
@@ -62,14 +60,17 @@ public class Nina {
         nodo.setCullHint(Spatial.CullHint.Always);
         rootNode.attachChild(nodo);
 
-        // Sonido
+        // Sonido original modificado para el truco de volumen invertido
         sonido = new AudioNode(assetManager, "Sounds/llorona_mono.ogg", AudioData.DataType.Stream);
         sonido.setLooping(true);
         sonido.setPositional(true);
         sonido.setReverbEnabled(true);
-        sonido.setMaxDistance(20f);
-        sonido.setRefDistance(2f);
-        sonido.setVolume(2f);
+        
+        // Desactivamos la atenuación automática de JME usando distancias gigantescas
+        sonido.setMaxDistance(99999f);
+        sonido.setRefDistance(99999f);
+        sonido.setVolume(0f); // Inicia silenciada por defecto
+        
         nodo.attachChild(sonido);
         sonido.stop();
 
@@ -129,18 +130,43 @@ public class Nina {
         }
         control.setWalkDirection(direccion.mult(VELOCIDAD * tpf));
 
-        // Girar hacia la cámara
-        Vector3f mirarCam = cam.getLocation().subtract(posNina);
-        mirarCam.y = 0;
-        if (mirarCam.lengthSquared() > 0.001f) {
-            mirarCam.normalizeLocal();
-            float anguloY = FastMath.atan2(mirarCam.x, mirarCam.z);
+        // ── NUEVA ROTACIÓN CORREGIDA PARA FÍSICAS ─────────────────────────────
+        Vector3f direccionMirar = posJugador.subtract(posNina);
+        direccionMirar.y = 0; // Ignoramos la altura para que no se incline hacia arriba/abajo
+
+        if (direccionMirar.lengthSquared() > 0.001f) {
+            direccionMirar.normalizeLocal();
+            
+            // Calcula el ángulo hacia el jugador
+            float anguloY = FastMath.atan2(direccionMirar.x, direccionMirar.z);
+            
+            // 💡 SI TE DA LA ESPALDA AL CAMINAR: quita las dos barras "//" de la siguiente línea:
+            // anguloY += FastMath.PI;
+
             Quaternion rotNina = new Quaternion();
             rotNina.fromAngleAxis(anguloY, Vector3f.UNIT_Y);
-            nodo.setLocalRotation(rotNina);
+            
+            // ¡EL TRUCO! Rotamos los objetos internos (hijos) evadiendo el bloqueo físico
+            for (Spatial hijo : nodo.getChildren()) {
+                hijo.setLocalRotation(rotNina);
+            }
         }
+        // ─────────────────────────────────────────────────────────────────────
 
         nodo.setLocalTranslation(posNina);
+
+        // ── CÁLCULO DE VOLUMEN INVERTIDO ──
+        float distanciaActual = posNina.distance(posJugador);
+        float distanciaMinima = DISTANCIA_ALCANCE; // 1.0f (silencio aquí)
+        float distanciaMaxima = 15f;              // Máximo volumen a los 15 metros
+        float volumenMaximo   = 2.0f;
+
+        // Interpolación lineal inversa
+        float factorVolumen = (distanciaActual - distanciaMinima) / (distanciaMaxima - distanciaMinima);
+        factorVolumen = FastMath.clamp(factorVolumen, 0f, 1f); 
+
+        sonido.setVolume(factorVolumen * volumenMaximo);
+        // ──────────────────────────────────
 
         // ¿Alcanzó al jugador?
         if (posNina.distance(posJugador) <= DISTANCIA_ALCANCE) {
