@@ -39,7 +39,7 @@ public class Portal {
         Material matHoriz = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         matHoriz.setColor("Color", color.clone().mult(1.5f)); // Un poco más vivo
         paloHoriz.setMaterial(matHoriz);
-        
+
         // Desplazamos el palo horizontal hacia abajo en el eje Y
         paloHoriz.setLocalTranslation(0f, -0.3f, 0f);
 
@@ -48,7 +48,7 @@ public class Portal {
         Material matPulso = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         matPulso.setColor("Color", color.clone().mult(3f)); // Brillo intenso
         centroPulso.setMaterial(matPulso);
-        
+
         // Se coloca exactamente en la misma intersección
         centroPulso.setLocalTranslation(0f, -0.3f, 0f);
 
