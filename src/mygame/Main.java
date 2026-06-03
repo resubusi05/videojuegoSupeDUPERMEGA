@@ -35,10 +35,21 @@ import com.jme3.scene.shape.Quad;
 public class Main extends SimpleApplication implements ActionListener, AnalogListener {
 
     private ArrayList<ControladorLuz> lucesParpadeantes = new ArrayList<>();
-    
-    //Llaves
+
+    // ── Llaves ─────────────────────────────────────────────────────────────────
     private Spatial nodoLlave1 = null;
-        private Spatial nodoLlave2 = null;
+    private Spatial nodoLlave2 = null;
+    private boolean llave1Recogida = false;
+    private boolean llave2Recogida = false;
+    private int llavesRecogidas = 0;
+    private BitmapText textoLlaves = null;
+    private BitmapText textoPromptLlave = null;
+
+    // ── Caja Fuerte y Victoria (¡NUEVO!) ───────────────────────────────────────
+    private Spatial nodoCajaFuerte = null;
+    private boolean juegoGanado = false;
+    private Geometry overlayVerde = null;
+    private BitmapText textoVictoria = null;
 
     // ── Física ────────────────────────────────────────────────────────────────
     private BulletAppState bulletAppState;
@@ -82,26 +93,35 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     // ── Portales fijos ────────────────────────────────────────────────────────
     private Portal portalFijo1 = null;
     private Portal portalFijo2 = null;
-    private static final ColorRGBA COLOR_PAR_2 = new ColorRGBA(1f, 0.3f, 0.1f, 1f);  // naranja
-    private static final ColorRGBA COLOR_PAR_3 = new ColorRGBA(0.2f, 1f, 0.3f, 1f);  // verde
+    private static final ColorRGBA COLOR_PAR_2 = new ColorRGBA(1f, 0.3f, 0.1f, 1f);   // naranja
+    private static final ColorRGBA COLOR_PAR_3 = new ColorRGBA(0.2f, 1f, 0.3f, 1f);   // verde
+    private static final ColorRGBA COLOR_PAR_4 = new ColorRGBA(0.7f, 0.2f, 1f, 1f);   // morado
 
     // ── Mapa actual ───────────────────────────────────────────────────────────
     private Node nodoMapaActual = null;
     private RigidBodyControl fisicaMapaActual = null;
     private String mapaActual = "";
 
-    // Spawns de cada mapa
+    // ── Spawns de cada mapa ───────────────────────────────────────────────────
     private static final Vector3f SPAWN_HOSPITAL  = new Vector3f(0f, 2.8f, 11.4f);
     private static final Vector3f SPAWN_PASILLO   = new Vector3f(-0.025965627f, 1.4f, -29.518536f);
     private static final Vector3f SPAWN_EXPANDED  = new Vector3f(-0.028759956f, 1.4f,  19.512066f);
+    private static final Vector3f SPAWN_GRANDE    = new Vector3f(0f, 1.4f, 0f);
 
-    // Posiciones de portales en HospitalPsy
-    private static final Vector3f POS_HOSPITAL_A_PASILLO  = new Vector3f(1.2205951f,   0.94324297f, 10.335817f);
-    private static final Vector3f POS_HOSPITAL_A_EXPANDED = new Vector3f(-1.3623745f,  0.9470472f,   6.3709793f);
+    // ── Posiciones portales HospitalPsy ──────────────────────────────────────
+    private static final Vector3f POS_HOSPITAL_A_PASILLO  = new Vector3f(1.2205951f,  0.94324297f, 10.335817f);
+    private static final Vector3f POS_HOSPITAL_A_EXPANDED = new Vector3f(-1.3623745f, 0.9470472f,   6.3709793f);
 
-    // Posiciones de portales de regreso
+    // ── Posiciones portales Pasillo ───────────────────────────────────────────
     private static final Vector3f POS_PASILLO_A_HOSPITAL  = new Vector3f(-0.025965627f, 0.9f, -29.518536f);
+    private static final Vector3f POS_PASILLO_A_EXPANDED  = new Vector3f(0.023550153f,  0.9f,  29.53489f);
+
+    // ── Posiciones portales Expanded ─────────────────────────────────────────
     private static final Vector3f POS_EXPANDED_A_HOSPITAL = new Vector3f(-0.028759956f, 0.9f,  19.512066f);
+    private static final Vector3f POS_EXPANDED_A_GRANDE   = new Vector3f(-11.060001f,   0.9f, -16.614017f);
+
+    // ── Posiciones portales Grande ────────────────────────────────────────────
+    private static final Vector3f POS_GRANDE_A_EXPANDED   = new Vector3f(0.023550153f,  0.9f,  29.53489f);
 
     // ── Niña ──────────────────────────────────────────────────────────────────
     private Nina nina;
@@ -111,15 +131,13 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     private Geometry overlayRojo = null;
     private BitmapText textoGameOver = null;
 
-    // ── Posición spawn original ───────────────────────────────────────────────
+    // ── Spawn original ────────────────────────────────────────────────────────
     private static final Vector3f SPAWN_POS = SPAWN_HOSPITAL;
 
-    // ─────────────────────────────────────────────────────────────────────────
     public static void main(String[] args) {
         new Main().start();
     }
 
-    // ── Inicialización ────────────────────────────────────────────────────────
     @Override
     public void simpleInitApp() {
         initPhysics();
@@ -137,26 +155,26 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         stateManager.attach(bulletAppState);
     }
 
-    // ── Carga/descarga dinámica de mapas ──────────────────────────────────────
     private void cargarMapa(String nombreMapa) {
-        
+
         if (nodoLlave1 != null) { rootNode.detachChild(nodoLlave1); nodoLlave1 = null; }
         if (nodoLlave2 != null) { rootNode.detachChild(nodoLlave2); nodoLlave2 = null; }
-        
-        // ── Descargar mapa anterior ───────────────────────────────────────────
+        // Desacoplar la caja fuerte al cambiar de mapa de forma limpia
+        if (nodoCajaFuerte != null) { rootNode.detachChild(nodoCajaFuerte); nodoCajaFuerte = null; }
+
         if (nodoMapaActual != null) {
             if (fisicaMapaActual != null) {
                 bulletAppState.getPhysicsSpace().remove(fisicaMapaActual);
+                nodoMapaActual.removeControl(fisicaMapaActual);
                 fisicaMapaActual = null;
             }
+            bulletAppState.getPhysicsSpace().removeAll(nodoMapaActual);
             rootNode.detachChild(nodoMapaActual);
             nodoMapaActual = null;
         }
 
-        // ── Quitar portales fijos anteriores ──────────────────────────────────
         quitarPortalesFijos();
 
-        // ── Cargar nuevo mapa ─────────────────────────────────────────────────
         String rutaOBJ;
         switch (nombreMapa) {
             case "pasillo":
@@ -165,12 +183,15 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
             case "expanded":
                 rutaOBJ = "Scenes/hospital_psiquiatrico_expanded.obj";
                 break;
-            default: // "hospital"
+            case "grande":
+                rutaOBJ = "Scenes/MapaGrandeHospitalPsi.obj";
+                break;
+            default:
                 rutaOBJ = "Scenes/HospitalPsy.obj";
                 break;
         }
 
-        nodoMapaActual = (Node) assetManager.loadModel(rutaOBJ);
+        nodoMapaActual = (Node) assetManager.loadModel(rutaOBJ).clone();
         nodoMapaActual.setShadowMode(ShadowMode.CastAndReceive);
 
         CollisionShape shape = CollisionShapeFactory.createMeshShape(nodoMapaActual);
@@ -181,61 +202,116 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
         mapaActual = nombreMapa;
 
-        // ── Crear portales fijos del nuevo mapa ───────────────────────────────
         switch (nombreMapa) {
             case "hospital":
-                // Portal naranja → PasilloRojo
                 portalFijo1 = new Portal(assetManager, rootNode,
                         POS_HOSPITAL_A_PASILLO, POS_PASILLO_A_HOSPITAL, COLOR_PAR_2);
-                // Portal verde → Expanded
-                portalFijo2 = new Portal(assetManager, rootNode,
-                        POS_HOSPITAL_A_EXPANDED, POS_EXPANDED_A_HOSPITAL, COLOR_PAR_3);
+                portalFijo2 = null;
                 break;
+
             case "pasillo":
-                // Solo portal naranja de regreso al hospital
                 portalFijo1 = new Portal(assetManager, rootNode,
                         POS_PASILLO_A_HOSPITAL, POS_HOSPITAL_A_PASILLO, COLOR_PAR_2);
-                portalFijo2 = null;
-                break;
-            case "expanded":
-                // Solo portal verde de regreso al hospital
-                portalFijo1 = new Portal(assetManager, rootNode,
-                        POS_EXPANDED_A_HOSPITAL, POS_HOSPITAL_A_EXPANDED, COLOR_PAR_3);
-                portalFijo2 = null;
-                break;
-                
-        }
-        
-        // ── Llaves ────────────────────────────────────────────────────────────
-        switch (nombreMapa) {
-            case "hospital":
-                nodoLlave1 = assetManager.loadModel("Models/llave1.obj");
-                nodoLlave1.setLocalScale(0.05f);
-                nodoLlave1.updateGeometricState(); // ← fuerza cálculo del bounding box
-                com.jme3.bounding.BoundingBox bb1 =
-                        (com.jme3.bounding.BoundingBox) nodoLlave1.getWorldBound();
-                float mitadAltura1 = (bb1 != null) ? bb1.getYExtent() : 0f;
-                nodoLlave1.setLocalTranslation(-23.629555f,
-                        0.9f - mitadAltura1,   // ← Y ajustada
-                        -9.214014f);
-                nodoLlave1.rotate(0, 224.23128f * FastMath.DEG_TO_RAD, 0.015f);
-                rootNode.attachChild(nodoLlave1);
+                portalFijo2 = new Portal(assetManager, rootNode,
+                        POS_PASILLO_A_EXPANDED, POS_EXPANDED_A_HOSPITAL, COLOR_PAR_3);
                 break;
 
             case "expanded":
-                nodoLlave2 = assetManager.loadModel("Models/llave2.obj");
-                nodoLlave2.updateGeometricState();
-                com.jme3.bounding.BoundingBox bb2 =
-                        (com.jme3.bounding.BoundingBox) nodoLlave2.getWorldBound();
-                float mitadAltura2 = (bb2 != null) ? bb2.getYExtent() : 0f;
-                nodoLlave2.setLocalTranslation(24.451488f,
-                        0.9f - mitadAltura2,   // ← Y ajustada
-                        -18.123974f);
-                nodoLlave2.rotate(0, 85.328186f * FastMath.DEG_TO_RAD, 0);
-                rootNode.attachChild(nodoLlave2);
+                portalFijo1 = new Portal(assetManager, rootNode,
+                        POS_EXPANDED_A_HOSPITAL, POS_PASILLO_A_EXPANDED, COLOR_PAR_3);
+                portalFijo2 = new Portal(assetManager, rootNode,
+                        POS_EXPANDED_A_GRANDE, POS_GRANDE_A_EXPANDED, COLOR_PAR_4);
+                break;
+
+            case "grande":
+                portalFijo1 = new Portal(assetManager, rootNode,
+                        POS_GRANDE_A_EXPANDED, POS_EXPANDED_A_GRANDE, COLOR_PAR_4);
+                portalFijo2 = null;
                 break;
         }
-        
+
+        // ── Llaves ────────────────────────────────────────────────────────────
+        if (nombreMapa.equals("hospital") && !llave1Recogida) {
+            nodoLlave1 = assetManager.loadModel("Models/llave1.obj");
+            nodoLlave1.setLocalScale(0.03f);
+            nodoLlave1.updateGeometricState();
+            com.jme3.bounding.BoundingBox bb1 =
+                    (com.jme3.bounding.BoundingBox) nodoLlave1.getWorldBound();
+            float mitadAltura1 = (bb1 != null) ? bb1.getYExtent() : 0f;
+            nodoLlave1.setLocalTranslation(-23.629555f, 0.6f - mitadAltura1, -9.214014f);
+            nodoLlave1.rotate(0, 224.23128f * FastMath.DEG_TO_RAD, 0.015f);
+            rootNode.attachChild(nodoLlave1);
+        }
+
+        if (nombreMapa.equals("expanded") && !llave2Recogida) {
+            nodoLlave2 = assetManager.loadModel("Models/llave2.obj");
+            nodoLlave2.updateGeometricState();
+            nodoLlave2.setLocalScale(0.05f);
+            com.jme3.bounding.BoundingBox bb2 =
+                    (com.jme3.bounding.BoundingBox) nodoLlave2.getWorldBound();
+            float mitadAltura2 = (bb2 != null) ? bb2.getYExtent() : 0f;
+            nodoLlave2.setLocalTranslation(24.451488f, 0.6f - mitadAltura2, -18.123974f);
+            nodoLlave2.rotate(0, 85.328186f * FastMath.DEG_TO_RAD, 0);
+            rootNode.attachChild(nodoLlave2);
+        }
+
+        // ── Carga de la Caja Fuerte (Solo en mapa grande) ─────────────────────
+        if (nombreMapa.equals("grande")) {
+            nodoCajaFuerte = assetManager.loadModel("Models/caja_fuerte.obj");
+
+            // Asignar Posición proporcionada
+            nodoCajaFuerte.setLocalTranslation(0.1267921f, 1.0268862f, 18.163763f);
+
+            // Asignar Rotación proporcionada (Convertida de Grados a Radianes)
+            float yawRad   = 265.21677f * FastMath.DEG_TO_RAD;
+            float pitchRad = 15.247167f * FastMath.DEG_TO_RAD;
+            Quaternion rotCaja = new Quaternion();
+            rotCaja.fromAngles(pitchRad, yawRad, 0f);
+            nodoCajaFuerte.setLocalRotation(rotCaja);
+
+            rootNode.attachChild(nodoCajaFuerte);
+        }
+    }
+
+    private void intentarRecogerLlave() {
+        Vector3f posJugador = playerControl.getPhysicsLocation();
+
+        if (nodoLlave1 != null && !llave1Recogida) {
+            if (posJugador.distance(nodoLlave1.getWorldTranslation()) <= 2f) {
+                rootNode.detachChild(nodoLlave1);
+                nodoLlave1 = null;
+                llave1Recogida = true;
+                llavesRecogidas++;
+                textoLlaves.setText("Llaves: " + llavesRecogidas + "/2");
+                textoPromptLlave.setCullHint(Spatial.CullHint.Always);
+                return;
+            }
+        }
+
+        if (nodoLlave2 != null && !llave2Recogida) {
+            if (posJugador.distance(nodoLlave2.getWorldTranslation()) <= 2f) {
+                rootNode.detachChild(nodoLlave2);
+                nodoLlave2 = null;
+                llave2Recogida = true;
+                llavesRecogidas++;
+                textoLlaves.setText("Llaves: " + llavesRecogidas + "/2");
+                textoPromptLlave.setCullHint(Spatial.CullHint.Always);
+                return;
+            }
+        }
+    }
+
+    // ── Lógica para abrir la caja y ganar el juego (¡NUEVO!) ──────────────────
+    private void intentarAbrirCajaFuerte() {
+        if (nodoCajaFuerte != null && mapaActual.equals("grande")) {
+            Vector3f posJugador = playerControl.getPhysicsLocation();
+            // Comprobar cercanía a la caja fuerte (2.5 metros de rango)
+            if (posJugador.distance(nodoCajaFuerte.getWorldTranslation()) <= 2.5f) {
+                if (llavesRecogidas >= 2) {
+                    activarVictoria();
+                }
+            }
+        }
     }
 
     private void quitarPortalesFijos() {
@@ -261,9 +337,9 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     private void initLights() {
         AmbientLight ambiental = new AmbientLight();
-        ambiental.setColor(ColorRGBA.White.mult(0.002f));  // 0.3 = tenue, sube hasta 1.0 si quieres más
+        ambiental.setColor(ColorRGBA.White.mult(0.002f));
         rootNode.addLight(ambiental);
-        
+
         linterna = new SpotLight();
         linterna.setColor(ColorRGBA.White.mult(0.5f));
         linterna.setSpotRange(10f);
@@ -302,11 +378,12 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     private void initHUD() {
         Quad quad = new Quad(settings.getWidth(), settings.getHeight());
+
+        // HUD Game Over
         overlayRojo = new Geometry("OverlayRojo", quad);
         Material matRojo = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         matRojo.setColor("Color", new ColorRGBA(0.8f, 0f, 0f, 0.55f));
-        matRojo.getAdditionalRenderState().setBlendMode(
-                com.jme3.material.RenderState.BlendMode.Alpha);
+        matRojo.getAdditionalRenderState().setBlendMode(com.jme3.material.RenderState.BlendMode.Alpha);
         overlayRojo.setMaterial(matRojo);
         overlayRojo.setLocalTranslation(0, 0, 0);
         overlayRojo.setCullHint(Spatial.CullHint.Always);
@@ -323,9 +400,52 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
                 1f);
         textoGameOver.setCullHint(Spatial.CullHint.Always);
         guiNode.attachChild(textoGameOver);
+
+        // ── HUD Pantalla Victoria (¡NUEVO!) ───────────────────────────────────
+        overlayVerde = new Geometry("OverlayVerde", quad);
+        Material matVerde = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        matVerde.setColor("Color", new ColorRGBA(0.0f, 0.35f, 0.15f, 0.7f)); // Tono verde espiritual traslúcido
+        matVerde.getAdditionalRenderState().setBlendMode(com.jme3.material.RenderState.BlendMode.Alpha);
+        overlayVerde.setMaterial(matVerde);
+        overlayVerde.setLocalTranslation(0, 0, 0);
+        overlayVerde.setCullHint(Spatial.CullHint.Always);
+        guiNode.attachChild(overlayVerde);
+
+        textoVictoria = new BitmapText(fuente, false);
+        textoVictoria.setSize(fuente.getCharSet().getRenderedSize() * 1.8f);
+        textoVictoria.setColor(ColorRGBA.White);
+        textoVictoria.setText("¡Liberaste el alma de La Llorona!\n¡Has ganado el juego!\n\nPresiona R para jugar de nuevo");
+        textoVictoria.setLocalTranslation(
+                settings.getWidth() / 2f - 210f,
+                settings.getHeight() / 2f + 50f,
+                1f);
+        textoVictoria.setCullHint(Spatial.CullHint.Always);
+        guiNode.attachChild(textoVictoria);
+
+        BitmapFont fuente2 = assetManager.loadFont("Interface/Fonts/Default.fnt");
+
+        textoLlaves = new BitmapText(fuente2, false);
+        textoLlaves.setSize(fuente2.getCharSet().getRenderedSize() * 1.4f);
+        textoLlaves.setColor(ColorRGBA.Yellow);
+        textoLlaves.setText("Llaves: 0/2");
+        textoLlaves.setLocalTranslation(
+                settings.getWidth() - 130f,
+                settings.getHeight() - 10f,
+                1f);
+        guiNode.attachChild(textoLlaves);
+
+        textoPromptLlave = new BitmapText(fuente2, false);
+        textoPromptLlave.setSize(fuente2.getCharSet().getRenderedSize() * 1.2f);
+        textoPromptLlave.setColor(ColorRGBA.White);
+        textoPromptLlave.setText("Presiona E para recoger");
+        textoPromptLlave.setLocalTranslation(
+                settings.getWidth()  / 2f - 110f,
+                settings.getHeight() / 2f - 40f,
+                1f);
+        textoPromptLlave.setCullHint(Spatial.CullHint.Always);
+        guiNode.attachChild(textoPromptLlave);
     }
 
-    // ── Inputs ────────────────────────────────────────────────────────────────
     private void registrarInputs() {
         inputManager.addMapping("Adelante",       new KeyTrigger(KeyInput.KEY_W));
         inputManager.addMapping("Atras",          new KeyTrigger(KeyInput.KEY_S));
@@ -340,19 +460,20 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         inputManager.addMapping("MirarAbajo",     new MouseAxisTrigger(MouseInput.AXIS_Y, true));
         inputManager.addMapping("PortalO",        new KeyTrigger(KeyInput.KEY_O));
         inputManager.addMapping("PortalP",        new KeyTrigger(KeyInput.KEY_P));
+        inputManager.addMapping("RecogerLlave",   new KeyTrigger(KeyInput.KEY_E));
         inputManager.addListener(this,
                 "Adelante", "Atras", "Izquierda", "Derecha", "Saltar", "Correr", "Reiniciar",
                 "MirarDerecha", "MirarIzquierda", "MirarArriba", "MirarAbajo",
-                "PortalO", "PortalP");
+                "PortalO", "PortalP", "RecogerLlave");
     }
 
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
         if (name.equals("Reiniciar") && isPressed) {
-            if (gameOver) reiniciarJuego();
+            if (gameOver || juegoGanado) reiniciarJuego();
             return;
         }
-        if (gameOver) return;
+        if (gameOver || juegoGanado) return;
 
         switch (name) {
             case "Adelante":  moveForward  = isPressed; break;
@@ -364,25 +485,25 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
             case "PortalO":
                 if (isPressed) {
                     posicionO = playerControl.getPhysicsLocation().clone();
-                    System.out.println("[PortalO] X=" + posicionO.x + "  Y=" + posicionO.y + "  Z=" + posicionO.z);
-                    System.out.println("[PortalO] Yaw=" + (yaw * FastMath.RAD_TO_DEG) + "°  Pitch=" + (pitch * FastMath.RAD_TO_DEG) + "°");
                     if (portalA != null) rootNode.detachChild(portalA.getNodo());
                     Vector3f destA = (posicionP != null) ? posicionP.clone() : posicionO.clone();
                     portalA = new Portal(assetManager, rootNode, posicionO, destA, COLOR_PAR_1);
-                    if (portalB != null) portalB = new Portal(assetManager, rootNode,
-                            posicionP, posicionO.clone(), COLOR_PAR_1);
+                    if (portalB != null) portalB = new Portal(assetManager, rootNode, posicionP, posicionO.clone(), COLOR_PAR_1);
                 }
                 break;
             case "PortalP":
                 if (isPressed) {
                     posicionP = playerControl.getPhysicsLocation().clone();
-                    System.out.println("[PortalP] X=" + posicionP.x + "  Y=" + posicionP.y + "  Z=" + posicionP.z);
-                    System.out.println("[PortalP] Yaw=" + (yaw * FastMath.RAD_TO_DEG) + "°  Pitch=" + (pitch * FastMath.RAD_TO_DEG) + "°");
                     if (portalB != null) rootNode.detachChild(portalB.getNodo());
                     Vector3f destB = (posicionO != null) ? posicionO.clone() : posicionP.clone();
                     portalB = new Portal(assetManager, rootNode, posicionP, destB, COLOR_PAR_1);
-                    if (portalA != null) portalA = new Portal(assetManager, rootNode,
-                            posicionO, posicionP.clone(), COLOR_PAR_1);
+                    if (portalA != null) portalA = new Portal(assetManager, rootNode, posicionO, posicionP.clone(), COLOR_PAR_1);
+                }
+                break;
+            case "RecogerLlave":
+                if (isPressed) {
+                    intentarRecogerLlave();
+                    intentarAbrirCajaFuerte(); // Evalúa si también está abriendo la caja fuerte
                 }
                 break;
         }
@@ -390,7 +511,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     @Override
     public void onAnalog(String name, float value, float tpf) {
-        if (gameOver) return;
+        if (gameOver || juegoGanado) return;
         switch (name) {
             case "MirarDerecha":   yaw   -= value * MOUSE_SPEED; break;
             case "MirarIzquierda": yaw   += value * MOUSE_SPEED; break;
@@ -403,10 +524,9 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         cam.setAxes(qYaw.mult(qPitch));
     }
 
-    // ── Update ────────────────────────────────────────────────────────────────
     @Override
     public void simpleUpdate(float tpf) {
-        if (gameOver) return;
+        if (gameOver || juegoGanado) return;
 
         float velActual = isRunning ? RUN_SPEED : WALK_SPEED;
         camDir.set(cam.getDirection()).multLocal(velActual);
@@ -429,17 +549,12 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         linterna.setPosition(cam.getLocation());
         linterna.setDirection(cam.getDirection());
 
-        // ── Portales dinámicos (O/P) ──────────────────────────────────────────
         if (portalA != null) portalA.actualizar(tpf);
         if (portalB != null) portalB.actualizar(tpf);
-
-        // ── Portales fijos ────────────────────────────────────────────────────
         if (portalFijo1 != null) portalFijo1.actualizar(tpf);
         if (portalFijo2 != null) portalFijo2.actualizar(tpf);
 
-        // ── Teletransporte ────────────────────────────────────────────────────
         if (!enTeleporte) {
-            // Portales dinámicos O/P
             if (portalA != null && portalB != null) {
                 if (portalA.jugadorDentro(playerPos)) {
                     playerControl.setPhysicsLocation(portalB.getDestino().add(0, 0.5f, 0));
@@ -450,7 +565,6 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
                 }
             }
 
-            // Portales fijos — cambian de mapa
             if (!enTeleporte) {
                 if (portalFijo1 != null && portalFijo1.jugadorDentro(playerPos)) {
                     enTeleporte = true;
@@ -464,33 +578,62 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
                             playerControl.setPhysicsLocation(POS_HOSPITAL_A_PASILLO.add(0, 0.5f, 0));
                             break;
                         case "expanded":
-                            cargarMapa("hospital");
-                            playerControl.setPhysicsLocation(POS_HOSPITAL_A_EXPANDED.add(0, 0.5f, 0));
+                            cargarMapa("pasillo");
+                            playerControl.setPhysicsLocation(POS_PASILLO_A_EXPANDED.add(0, 0.5f, 0));
+                            break;
+                        case "grande":
+                            cargarMapa("expanded");
+                            playerControl.setPhysicsLocation(POS_EXPANDED_A_GRANDE.add(0, 0.5f, 0));
                             break;
                     }
                 } else if (portalFijo2 != null && portalFijo2.jugadorDentro(playerPos)) {
-                    // portalFijo2 solo existe en "hospital" → va a expanded
                     enTeleporte = true;
-                    cargarMapa("expanded");
-                    playerControl.setPhysicsLocation(SPAWN_EXPANDED.clone());
+                    switch (mapaActual) {
+                        case "pasillo":
+                            cargarMapa("expanded");
+                            playerControl.setPhysicsLocation(SPAWN_EXPANDED.clone());
+                            break;
+                        case "expanded":
+                            cargarMapa("grande");
+                            playerControl.setPhysicsLocation(SPAWN_GRANDE.clone());
+                            break;
+                    }
                 }
             }
         } else {
-            // Salir del estado enTeleporte cuando el jugador ya no esté en ningún portal
             boolean fueraOP =
-                (portalA == null || !portalA.jugadorDentro(playerPos)) &&
-                (portalB == null || !portalB.jugadorDentro(playerPos));
+                    (portalA == null || !portalA.jugadorDentro(playerPos)) &&
+                            (portalB == null || !portalB.jugadorDentro(playerPos));
             boolean fueraFijos =
-                (portalFijo1 == null || !portalFijo1.jugadorDentro(playerPos)) &&
-                (portalFijo2 == null || !portalFijo2.jugadorDentro(playerPos));
+                    (portalFijo1 == null || !portalFijo1.jugadorDentro(playerPos)) &&
+                            (portalFijo2 == null || !portalFijo2.jugadorDentro(playerPos));
             if (fueraOP && fueraFijos) enTeleporte = false;
         }
 
-        // ── Niña ──────────────────────────────────────────────────────────────
         nina.actualizar(tpf, playerPos, cam);
+
+        // ── Gestión Dinámica de Prompts en Pantalla (Llaves y Caja Fuerte) ────
+        boolean mostrarPrompt = false;
+        Vector3f pj = playerControl.getPhysicsLocation();
+
+        if (nodoLlave1 != null && pj.distance(nodoLlave1.getWorldTranslation()) <= 2f) {
+            textoPromptLlave.setText("Presiona E para recoger llave");
+            mostrarPrompt = true;
+        } else if (nodoLlave2 != null && pj.distance(nodoLlave2.getWorldTranslation()) <= 2f) {
+            textoPromptLlave.setText("Presiona E para recoger llave");
+            mostrarPrompt = true;
+        } else if (nodoCajaFuerte != null && pj.distance(nodoCajaFuerte.getWorldTranslation()) <= 2.5f) {
+            if (llavesRecogidas >= 2) {
+                textoPromptLlave.setText("Presiona E para liberar el alma");
+            } else {
+                textoPromptLlave.setText("Necesitas las 2 llaves para abrir la caja");
+            }
+            mostrarPrompt = true;
+        }
+
+        textoPromptLlave.setCullHint(mostrarPrompt ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
     }
 
-    // ── Game Over ─────────────────────────────────────────────────────────────
     private void activarGameOver() {
         gameOver = true;
         nina.ocultar();
@@ -500,19 +643,32 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         textoGameOver.setCullHint(Spatial.CullHint.Inherit);
     }
 
+    // ── Activar Estado Ganador (¡NUEVO!) ──────────────────────────────────────
+    private void activarVictoria() {
+        juegoGanado = true;
+        nina.ocultar();
+        playerControl.setWalkDirection(Vector3f.ZERO);
+        moveForward = moveBackward = moveLeft = moveRight = false;
+        overlayVerde.setCullHint(Spatial.CullHint.Inherit);
+        textoVictoria.setCullHint(Spatial.CullHint.Inherit);
+        textoPromptLlave.setCullHint(Spatial.CullHint.Always);
+    }
+
     private void reiniciarJuego() {
         gameOver = false;
+        juegoGanado = false; // Resetear bandera de victoria
+
         overlayRojo.setCullHint(Spatial.CullHint.Always);
         textoGameOver.setCullHint(Spatial.CullHint.Always);
+        overlayVerde.setCullHint(Spatial.CullHint.Always); // Ocultar overlay verde
+        textoVictoria.setCullHint(Spatial.CullHint.Always); // Ocultar texto victoria
 
-        // Volver al hospital
         cargarMapa("hospital");
         playerControl.setPhysicsLocation(SPAWN_POS.clone());
         playerControl.setWalkDirection(Vector3f.ZERO);
         yaw   = 0f;
         pitch = 0f;
 
-        // Limpiar portales dinámicos
         if (portalA != null) { rootNode.detachChild(portalA.getNodo()); portalA = null; }
         if (portalB != null) { rootNode.detachChild(portalB.getNodo()); portalB = null; }
         posicionO   = null;
@@ -520,6 +676,14 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
         enTeleporte = false;
 
         nina.resetear();
+
+        llave1Recogida  = false;
+        llave2Recogida  = false;
+        llavesRecogidas = 0;
+        textoLlaves.setText("Llaves: 0/2");
+        nodoLlave1 = null;
+        nodoLlave2 = null;
+        nodoCajaFuerte = null;
     }
 
     @Override
