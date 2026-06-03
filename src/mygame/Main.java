@@ -626,9 +626,9 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
 
     private void finalizarSeleccionDificultad() {
         enMenuDificultad = false;
-        overlayMenu.setCullHint(Spatial.CullHint.Always);
-        textoMenu.setCullHint(Spatial.CullHint.Always);
-        tituloJuego.setCullHint(Spatial.CullHint.Always);
+        guiNode.detachChild(overlayMenu);
+        guiNode.detachChild(textoMenu);
+        guiNode.detachChild(tituloJuego);
     }
 
     @Override
