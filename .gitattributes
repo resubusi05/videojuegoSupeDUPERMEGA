@@ -2,3 +2,4 @@
 * text=auto
 *.obj filter=lfs diff=lfs merge=lfs -text
 *.mtl filter=lfs diff=lfs merge=lfs -text
+output_exe/Andy-Descent-Into-Madness/runtime/lib/modules filter=lfs diff=lfs merge=lfs -text
