@@ -92,6 +92,7 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
     // ── Luces ─────────────────────────────────────────────────────────────────
     private SpotLight  linterna;
     private PointLight foco;
+    private final ArrayList<com.jme3.light.Light> lucesMapa = new ArrayList<>();
 
     // ── Portales O/P (dinámicos) ──────────────────────────────────────────────
     private Portal portalA;
@@ -331,6 +332,136 @@ public class Main extends SimpleApplication implements ActionListener, AnalogLis
             nodoCajaFuerte.setLocalRotation(rotCaja);
 
             rootNode.attachChild(nodoCajaFuerte);
+        }
+
+        configurarLucesMapa(nombreMapa);
+    }
+
+    private void configurarLucesMapa(String nombreMapa) {
+        // Remover luces del mapa anterior
+        for (com.jme3.light.Light l : lucesMapa) {
+            rootNode.removeLight(l);
+        }
+        lucesMapa.clear();
+
+        if (nombreMapa.equals("expanded")) {
+            ColorRGBA colorAmarillo = new ColorRGBA(1.0f, 0.84f, 0.3f, 1.0f).mult(1.5f);
+            ColorRGBA colorSalaIzq = new ColorRGBA(0.9f, 0.9f, 1.0f, 1.0f).mult(2.0f);
+
+            // 1. Luces del pasillo principal
+            float[] zPasilloPrincipal = { -18.67f, -15.68f, -11.19f, -6.70f, -2.20f, 2.29f, 6.78f, 11.27f, 15.77f };
+            for (float z : zPasilloPrincipal) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorAmarillo);
+                pl.setRadius(6.0f);
+                pl.setPosition(new Vector3f(0f, 2.2f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+
+            // 2. Luces del pasillo horizontal
+            float[] xPasilloHorizontal = { 4.49f, 7.49f, 10.48f, 13.48f };
+            for (float x : xPasilloHorizontal) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorAmarillo);
+                pl.setRadius(5.0f);
+                pl.setPosition(new Vector3f(x, 2.2f, -18.67f));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+
+            // 3. Luz sala izquierda
+            PointLight plSalaIzq = new PointLight();
+            plSalaIzq.setColor(colorSalaIzq);
+            plSalaIzq.setRadius(6.0f);
+            plSalaIzq.setPosition(new Vector3f(-7.86f, 2.2f, -16.62f));
+            rootNode.addLight(plSalaIzq);
+            lucesMapa.add(plSalaIzq);
+
+            // 4. Grupo de luces sala superior
+            Vector3f[] lucesSalaSup = {
+                new Vector3f(-1.12f, 2.2f, -25.04f),
+                new Vector3f(0.37f, 2.2f, -24.67f),
+                new Vector3f(1.87f, 2.2f, -24.29f)
+            };
+            for (Vector3f pos : lucesSalaSup) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorAmarillo);
+                pl.setRadius(5.0f);
+                pl.setPosition(pos);
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+        } else if (nombreMapa.equals("grande")) {
+            ColorRGBA colorAmarillo = new ColorRGBA(1.0f, 0.84f, 0.3f, 1.0f).mult(1.5f);
+            ColorRGBA colorOficina = new ColorRGBA(0.9f, 0.9f, 1.0f, 1.0f).mult(2.0f);
+
+            // 1. Corredor Izquierdo (X = 14.52f)
+            float[] zCorredor = { -55.91f, -50.30f, -41.32f, -32.35f, -23.37f, -14.39f, -5.41f, 3.57f, 12.55f };
+            for (float z : zCorredor) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorAmarillo);
+                pl.setRadius(7.0f);
+                pl.setPosition(new Vector3f(14.52f, 2.4f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+
+            // 2. Corredor Derecho (X = 35.48f)
+            for (float z : zCorredor) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorAmarillo);
+                pl.setRadius(7.0f);
+                pl.setPosition(new Vector3f(35.48f, 2.4f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+
+            // 3. Eje Central (X = 25.0f)
+            float[] zEjeCentral = { -50.30f, -41.32f, -32.35f, -23.37f, -14.39f, -5.41f, 3.57f, 12.55f };
+            for (float z : zEjeCentral) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorAmarillo);
+                pl.setRadius(7.0f);
+                pl.setPosition(new Vector3f(25.0f, 2.4f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+
+            // 4. Oficinas Izquierda (X = -1.95f)
+            float[] zOficinas = { -45.81f, -32.35f, -14.39f, 8.06f };
+            for (float z : zOficinas) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorOficina);
+                pl.setRadius(10.0f);
+                pl.setPosition(new Vector3f(-1.95f, 2.4f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+
+            // 5. Oficinas Derecha (X = 51.95f)
+            for (float z : zOficinas) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorOficina);
+                pl.setRadius(10.0f);
+                pl.setPosition(new Vector3f(51.95f, 2.4f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
+        } else if (nombreMapa.equals("pasillo")) {
+            ColorRGBA colorRojo = new ColorRGBA(1.0f, 0.0f, 0.0f, 1.0f).mult(3.0f);
+
+            // Reducimos a 3 luces con mayor radio (22f) para no exceder el límite de luces
+            // simultáneas por geometría de JME (máx 4) y evitar parpadeos/apagados.
+            float[] zPasillo = { -20.0f, 0.0f, 20.0f };
+            for (float z : zPasillo) {
+                PointLight pl = new PointLight();
+                pl.setColor(colorRojo);
+                pl.setRadius(22.0f);
+                pl.setPosition(new Vector3f(0f, 2.4f, z));
+                rootNode.addLight(pl);
+                lucesMapa.add(pl);
+            }
         }
     }
 
